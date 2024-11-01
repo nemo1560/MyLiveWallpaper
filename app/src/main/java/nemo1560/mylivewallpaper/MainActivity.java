@@ -1,5 +1,5 @@
 package nemo1560.mylivewallpaper;
-
+import android.widget.Toast;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -10,6 +10,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.app.Activity;
 import android.app.WallpaperManager;
 import android.content.ComponentName;
+import android.content.ContentUris;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -21,9 +23,13 @@ import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.Settings;
+import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.Manifest;
+
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -60,28 +66,115 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void onChooseFileButtonClick() {
-        String imagePath = String.valueOf(Uri.parse(Environment.DIRECTORY_DCIM));  //"%2f" represents "/"
+        String imagePath = Environment.getExternalStorageDirectory().getAbsolutePath();  //"%2f" represents "/"
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI,imagePath);
         intent.setType("*/*");
         startActivityForResult(intent, REQUEST_CODE_PICK_FILE);
     }
 
-    private String getRealPathFromURI(Uri contentUri) {
-        String filePath;
-        String[] projection = {MediaStore.Images.Media.DATA};
+    public String getRealPathFromURI(final Context context, Uri contentUri) {
+        // Check here to KITKAT or new version
+        final boolean isKitKat = Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT;
+        String selection = null;
+        String[] selectionArgs = null;
+        // DocumentProvider
+        if (isKitKat && DocumentsContract.isDocumentUri(context, contentUri)) {
+            // ExternalStorageProvider
+            if (Keys.isExternalStorageDocument(contentUri)) {
+                final String docId = DocumentsContract.getDocumentId(contentUri);
+                final String[] split = docId.split(":");
+                final String type = split[0];
 
-        Cursor cursor = getContentResolver().query(contentUri, projection, null, null, null);
-        if (cursor != null) {
-            cursor.moveToFirst();
-            int columnIndex = cursor.getColumnIndex(projection[0]);
-            filePath = cursor.getString(columnIndex);
-            cursor.close();
-        } else {
-            filePath = contentUri.getPath();
+                String fullPath = Keys.getPathFromExtSD(split);
+                if (!fullPath.equals("")) {
+                    return fullPath;
+                } else {
+                    return null;
+                }
+            }
+            else if (Keys.isDownloadsDocument(contentUri)) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    final String id;
+                    Cursor cursor = null;
+                    try {
+                        cursor = context.getContentResolver().query(contentUri, new String[]{MediaStore.MediaColumns.DISPLAY_NAME}, null, null, null);
+                        if (cursor != null && cursor.moveToFirst()) {
+                            String fileName = cursor.getString(0);
+                            String path = Environment.getExternalStorageDirectory().toString() + "/Download/" + fileName;
+                            if (!TextUtils.isEmpty(path)) {
+                                return path;
+                            }
+                        }
+                    } finally {
+                        if (cursor != null) {
+                            cursor.close();
+                        }
+                    }
+                    id = DocumentsContract.getDocumentId(contentUri);
+                    if (!TextUtils.isEmpty(id)) {
+                        if (id.startsWith("raw:")) {
+                            return id.replaceFirst("raw:", "");
+                        }
+                        String[] contentUriPrefixesToTry = new String[]{
+                                "content://downloads/public_downloads",
+                                "content://downloads/my_downloads"
+                        };
+                        for (String contentUriPrefix : contentUriPrefixesToTry) {
+                            try {
+                                final Uri _contentUri = ContentUris.withAppendedId(Uri.parse(contentUriPrefix), Long.valueOf(id));
+
+                                // final Uri contentUri = ContentUris.withAppendedId(
+                                //        Uri.parse("content://downloads/public_downloads"), Long.valueOf(id));
+
+                                return Keys.getDataColumn(context, _contentUri, null, null);
+                            } catch (NumberFormatException e) {
+                                // In Android 8 and Android P the id is not a number
+                                return contentUri.getPath().replaceFirst("^/document/raw:", "").replaceFirst("^raw:", "");
+                            }
+                        }
+                    }
+                } else {
+                    final String id = DocumentsContract.getDocumentId(contentUri);
+                    final boolean isOreo = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O;
+                    if (id.startsWith("raw:")) {
+                        return id.replaceFirst("raw:", "");
+                    }
+                    try {
+                        contentUri = ContentUris.withAppendedId(
+                                Uri.parse("content://downloads/public_downloads"), Long.valueOf(id));
+
+                    } catch (NumberFormatException e) {
+                        e.printStackTrace();
+                    }
+                    if (contentUri != null) {
+                        return Keys.getDataColumn(context, contentUri, null, null);
+                    }
+                }
+            }
+            // MediaProvider
+            else if (Keys.isMediaDocument(contentUri)) {
+                final String docId = DocumentsContract.getDocumentId(contentUri);
+                final String[] split = docId.split(":");
+                final String type = split[0];
+
+                Uri _contentUri = null;
+
+                if ("image".equals(type)) {
+                    _contentUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+                } else if ("video".equals(type)) {
+                    _contentUri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                } else if ("audio".equals(type)) {
+                    _contentUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+                }
+                selection = "_id=?";
+                selectionArgs = new String[]{split[1]};
+                return Keys.getDataColumn(context, _contentUri, selection, selectionArgs);
+            } else if (Keys.isGoogleDriveUri(contentUri)) {
+                return Keys.getDriveFilePath(contentUri, context);
+            }
         }
-
-        return filePath;
+        return selection;
     }
 
     private void checkPermission(){
@@ -109,8 +202,14 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_CODE_PICK_FILE && resultCode == Activity.RESULT_OK) {
             Uri selectedFileUri = data.getData();
-            String filePath = getRealPathFromURI(selectedFileUri);
-            startLiveWallpaper(filePath);
+            String filePath = getRealPathFromURI(this.getBaseContext(),selectedFileUri);
+            File _file = new File(filePath);
+            double fileSizeInMB = _file.length() / 1024.0;
+            if(filePath != null && _file.canRead() && fileSizeInMB < 10000){
+                startLiveWallpaper(filePath);
+            }else{
+                Toast.makeText(getApplicationContext(), "File không đúng format", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 

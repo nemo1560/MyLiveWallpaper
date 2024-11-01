@@ -54,9 +54,9 @@ public class GIFWallpaperService extends WallpaperService {
     class VideoEngine extends Engine {
 
         private final String TAG = getClass().getSimpleName();
-        private final MediaPlayer mediaPlayer;
-        private final AssetManager assetManager;
-        private final String videoFilePath;
+        private MediaPlayer mediaPlayer;
+        private AssetManager assetManager;
+        private String videoFilePath;
 
         public VideoEngine(AssetManager assetManager, String videoFilePath) throws IOException {
             super();
