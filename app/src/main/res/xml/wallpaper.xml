@@ -2,5 +2,5 @@
 <wallpaper
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:label="GIF Wallpaper"
-    android:thumbnail="@drawable/ic_launcher_background">
+    android:thumbnail="@mipmap/ic_launcher">
 </wallpaper>

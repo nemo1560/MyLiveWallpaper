@@ -205,24 +205,32 @@ public class MainActivity extends AppCompatActivity {
             String filePath = getRealPathFromURI(this.getBaseContext(),selectedFileUri);
             File _file = new File(filePath);
             double fileSizeInMB = _file.length() / 1024.0;
-            if(filePath != null && _file.canRead() && fileSizeInMB < 10000){
+            if(filePath != null && _file.canRead() && fileSizeInMB < 30000){
                 startLiveWallpaper(filePath);
             }else{
-                Toast.makeText(getApplicationContext(), "File không đúng format", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getApplicationContext(), "File over size", Toast.LENGTH_SHORT).show();
             }
         }
     }
 
     private void startLiveWallpaper(String filePath) {
-        SharedPreferences preferences = getSharedPreferences("WallpaperPrefs", MODE_PRIVATE);
-        SharedPreferences.Editor editor = preferences.edit();
-        editor.putString("file_path", filePath);
-        editor.apply();
+        WallpaperManager wallpaperManager = WallpaperManager.getInstance(getApplicationContext());
+        try {
+            wallpaperManager.clear();
+            Toast.makeText(getApplicationContext(), "Stop live wallpaper.", Toast.LENGTH_SHORT).show();
+            SharedPreferences preferences = getSharedPreferences("WallpaperPrefs", MODE_PRIVATE);
+            SharedPreferences.Editor editor = preferences.edit();
+            editor.putString("file_path", filePath);
+            editor.apply();
 
-        Intent intent = new Intent();
-        intent.setAction(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER);
-        intent.putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, new ComponentName(this, GIFWallpaperService.class));
-        startActivity(intent);
-        finish();
+            Intent intent = new Intent();
+            intent.setAction(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER);
+            intent.putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, new ComponentName(this, GIFWallpaperService.class));
+            startActivity(intent);
+            finish();
+            Toast.makeText(getApplicationContext(), "Start new live wallpaper.", Toast.LENGTH_SHORT).show();
+        } catch (IOException e) {
+            Toast.makeText(getApplicationContext(), e.toString(), Toast.LENGTH_SHORT).show();
+        }
     }
 }

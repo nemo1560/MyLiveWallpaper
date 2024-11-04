@@ -10,9 +10,12 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.AssetFileDescriptor;
 import android.content.res.AssetManager;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Movie;
+import android.graphics.Paint;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
 import android.os.Bundle;
@@ -20,7 +23,10 @@ import android.os.Handler;
 import android.os.ParcelFileDescriptor;
 import android.service.wallpaper.WallpaperService;
 import android.util.Log;
+import android.view.Display;
+import android.view.Surface;
 import android.view.SurfaceHolder;
+import android.view.WindowManager;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -33,6 +39,7 @@ import java.util.Objects;
 
 public class GIFWallpaperService extends WallpaperService {
     protected static int playheadTime = 0;
+    private SurfaceHolder mSurfaceHolder;
 
     @Override
     public Engine onCreateEngine() {
@@ -42,17 +49,63 @@ public class GIFWallpaperService extends WallpaperService {
             if(Keys.TYPE == 2){
                 AssetManager assetManager = getApplicationContext().getAssets();
                 String videoFilePath = "1.mp4";
-                return new VideoEngine(assetManager, videoFilePath);
+                VideoEngine videoEngine = new VideoEngine(assetManager, videoFilePath);
+                mSurfaceHolder = videoEngine.getSurfaceHolder();
+                return videoEngine;
             } else {
-                return new VideoEngine(null, filePath);
+                VideoEngine videoEngine = new VideoEngine(null, filePath);
+                mSurfaceHolder = videoEngine.getSurfaceHolder();
+                return videoEngine;
             }
         }catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    class VideoEngine extends Engine {
+    @Override
+    public void onDestroy() {
+        stopSelf();
+        super.onDestroy();
+    }
 
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            Canvas canvas = null;
+            boolean canvasLocked = false;
+
+            while (!canvasLocked) {
+                try {
+                    canvas = mSurfaceHolder.lockCanvas();
+                    if (canvas != null) {
+                        canvasLocked = true;
+                    }
+                } catch (Exception e) {
+                    // Handle exception if needed
+                }
+            }
+            if (canvas != null) {
+                // Clear the canvas by drawing a white rectangle
+                Paint paint = new Paint();
+                paint.setColor(Color.BLACK);
+                canvas.drawRect(100, 0, canvas.getWidth(), canvas.getHeight(), paint);
+                mSurfaceHolder.unlockCanvasAndPost(canvas);
+            }
+        } else {
+
+        }
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if(intent != null && "STOP_WALLPAPER_SERVICE".equals(intent.getAction())){
+            stopSelf();
+        }
+        return super.onStartCommand(intent, flags, startId);
+    }
+
+    class VideoEngine extends Engine {
         private final String TAG = getClass().getSimpleName();
         private MediaPlayer mediaPlayer;
         private AssetManager assetManager;
@@ -87,6 +140,7 @@ public class GIFWallpaperService extends WallpaperService {
             mediaPlayer.setSurface(holder.getSurface());
             try {
                 mediaPlayer.prepare();
+                mediaPlayer.setVolume(0,0);
                 mediaPlayer.start();
             } catch (IOException e) {
                 Log.e("IOException", e.toString());
