@@ -69,35 +69,6 @@ public class GIFWallpaperService extends WallpaperService {
     }
 
     @Override
-    public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
-        if (newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            Canvas canvas = null;
-            boolean canvasLocked = false;
-
-            while (!canvasLocked) {
-                try {
-                    canvas = mSurfaceHolder.lockCanvas();
-                    if (canvas != null) {
-                        canvasLocked = true;
-                    }
-                } catch (Exception e) {
-                    // Handle exception if needed
-                }
-            }
-            if (canvas != null) {
-                // Clear the canvas by drawing a white rectangle
-                Paint paint = new Paint();
-                paint.setColor(Color.BLACK);
-                canvas.drawRect(100, 0, canvas.getWidth(), canvas.getHeight(), paint);
-                mSurfaceHolder.unlockCanvasAndPost(canvas);
-            }
-        } else {
-
-        }
-    }
-
-    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if(intent != null && "STOP_WALLPAPER_SERVICE".equals(intent.getAction())){
             stopSelf();
@@ -153,6 +124,22 @@ public class GIFWallpaperService extends WallpaperService {
             mediaPlayer.stop();
             mediaPlayer.reset();
             mediaPlayer.release();
+        }
+
+        public void onSurfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+            super.onSurfaceChanged(holder, format, width, height);
+
+            if (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                // Landscape mode
+                if (mediaPlayer.isPlaying()) {
+                    mediaPlayer.pause();
+                }
+            } else {
+                // Portrait mode
+                if (!mediaPlayer.isPlaying()) {
+                    mediaPlayer.start();
+                }
+            }
         }
     }
 }

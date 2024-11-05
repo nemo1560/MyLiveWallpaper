@@ -205,7 +205,7 @@ public class MainActivity extends AppCompatActivity {
             String filePath = getRealPathFromURI(this.getBaseContext(),selectedFileUri);
             File _file = new File(filePath);
             double fileSizeInMB = _file.length() / 1024.0;
-            if(filePath != null && _file.canRead() && fileSizeInMB < 30000){
+            if(filePath != null && _file.canRead() && fileSizeInMB < 60000){
                 startLiveWallpaper(filePath);
             }else{
                 Toast.makeText(getApplicationContext(), "File over size", Toast.LENGTH_SHORT).show();
